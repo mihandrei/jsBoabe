@@ -8,7 +8,7 @@ function Scene(canvasId){
     // Near things obscure far things
     gl.depthFunc(gl.LEQUAL);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-
+    disable_transparency(gl);
     // camera stuff
     gl.viewport(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
     this.mProj = mat4.create();
@@ -18,13 +18,13 @@ function Scene(canvasId){
     // mat4.perspective(this.mProj, Math.PI/3, 1, -1, 1);
 }
 
-function enable_transparency(){
+function enable_transparency(gl){
     gl.disable(gl.DEPTH_TEST);
     gl.enable(gl.BLEND);
 
 }
 
-function disable_transparency(){
+function disable_transparency(gl){
     gl.enable(gl.DEPTH_TEST);
     gl.disable(gl.BLEND);
 
@@ -131,9 +131,9 @@ Scene.prototype.render = function() {
         bind_attributes.call(this, mat, obj);
 
         if ('transparent' in mat){
-            enable_transparency();
+            enable_transparency(gl);
             topology(mat, obj);
-            disable_transparency();
+            disable_transparency(gl);
         }else{
             topology(mat, obj);
         }
@@ -149,7 +149,7 @@ function SimpleMaterial(scene){
     this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
     this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
     this.drawingMode = gl.TRIANGLES;
-
+    this.transparent = 1;
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition"),
         aColor : gl.getAttribLocation(this.program, "aColor")
