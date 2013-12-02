@@ -19,10 +19,8 @@ function meshmain(){
     scene.render();
 }
 
-
-
 function on_data_loaded_surface(data) {
-    surface = JSON.parse(data[0]);
+    window.surface = JSON.parse(data[0]);
 
     window.scene = new T3.Scene('glcanvas');
     var simpleMat = new T3.SimpleMaterial(scene);
@@ -33,8 +31,8 @@ function on_data_loaded_surface(data) {
             aPosition : surface.vertices,
             aColor : surface.normals
         },
-        indices: surface.indices.slice(0, 3 * 1000),
-        drawingMode: scene.gl.POINTS
+        indices: surface.indices.slice(0,200000),
+        drawingMode: scene.gl.TRIANGLES
     };
 
     scene.add(obj);
@@ -42,20 +40,19 @@ function on_data_loaded_surface(data) {
 }
 
 function on_data_loaded_points(data) {
-    nii_data = JSON.parse(data[0]);
+    window.nii_data = JSON.parse(data[0]);
 
     window.scene = new T3.Scene('glcanvas');
-    var simpleMat = new T3.SimpleMaterial(scene);
+    var simpleMat = new T3.DottyMaterial(scene);
 
     //position and indices are not always required?
     var obj = {
         material:simpleMat,
         arrays: {
-            aPosition: nii_data.vertices,
-            aColor : nii_data.vals
+            aPosition: nii_data.vertices
         },
         //vertices:
-        indices: nii_data.indices.slice(0, 10 * 1000),
+        indices: nii_data.indices,
         drawingMode: scene.gl.POINTS
     };
 
@@ -63,8 +60,39 @@ function on_data_loaded_points(data) {
     scene.render();
 }
 
-function main(){
-    // U3.ajaxes(['surface'], on_data_loaded_surface);
-    U3.ajaxes(['voxels'], on_data_loaded_points);
+function on_data_loaded_surface_and_points(data) {
+    window.surface = JSON.parse(data[0]);
+    window.voxels = JSON.parse(data[1]);
+    window.scene = new T3.Scene('glcanvas');
 
+    var dottyMat = new T3.DottyMaterial(scene);
+    var simpleMat = new T3.SimpleMaterial(scene);
+
+    var voxel_object = {
+        material:dottyMat,
+        arrays: {
+            aPosition: voxels.vertices
+        },
+        indices: voxels.indices.slice(0,900*1000)
+    };
+
+    var surface_object = {
+        material:simpleMat,
+        arrays: {
+            aPosition: surface.vertices,
+            aColor : surface.normals
+        },
+        indices: surface.indices.slice(0,300*1000)
+    };
+
+    scene.add(voxel_object);
+    scene.add(surface_object);
+
+    scene.render();
+}
+
+function main(){
+//    U3.ajaxes(['surface'], on_data_loaded_surface);
+//    U3.ajaxes(['voxels'], on_data_loaded_points);
+    U3.ajaxes(['surface', 'voxels'], on_data_loaded_surface_and_points);
 }

@@ -2,12 +2,13 @@
 
 function Scene(canvasId){
     this.canvas = document.getElementById(canvasId);
-    var gl = this.canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+    var gl = this.canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
     this.gl = gl;
     this.objects = [];
-    gl.enable(gl.DEPTH_TEST);
     // Near things obscure far things
     gl.depthFunc(gl.LEQUAL);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
     // camera stuff
     gl.viewport(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
     this.mProj = mat4.create();
@@ -17,6 +18,17 @@ function Scene(canvasId){
     // mat4.perspective(this.mProj, Math.PI/3, 1, -1, 1);
 }
 
+function enable_transparency(){
+    gl.disable(gl.DEPTH_TEST);
+    gl.enable(gl.BLEND);
+
+}
+
+function disable_transparency(){
+    gl.enable(gl.DEPTH_TEST);
+    gl.disable(gl.BLEND);
+
+}
 
 // translate obj.arrays to gpu buffers
 // add object to scene to be rendered
@@ -52,29 +64,33 @@ Scene.prototype.add = function(obj) {
 
 Scene.prototype.render = function() {
     var gl = this.gl;
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-    mat4.rotate(this.mModelView, this.mModelView, 0.01, [0,1,0]);
+    function topology(mat, obj){
+        if ('indices' in obj){
+            //bind indices buffer
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indices);
+            //invoke the program
+            gl.drawElements(mat.drawingMode, obj.indices.length, gl.UNSIGNED_SHORT, 0);
+        }else if('vertices' in obj){
+            gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertices);
+            gl.drawArrays(mat.drawingMode, obj.vertices.length, gl.FLOAT, 0);
+        }
+    }
 
-    for (var i = 0; i < this.objects.length; i++) {
-        var obj = this.objects[i];
-        var mat = obj.material;
-
-        gl.useProgram(mat.program);
-
-        // custom draw
+    function custom_draw(mat, obj){
         if ('draw' in obj){
             obj.draw(gl);
-            continue;
+            return true;
         }
-
         // update buffers for dynamic objects
         if ('update' in obj){
             obj.update();
         }
+        return false;
+    }
 
+    function bind_uniforms(mat){
         // bind common uniforms
-        // lights
         // mv p martrices
         gl.uniformMatrix4fv(mat.uPmatrix, false, this.mProj);
         gl.uniformMatrix4fv(mat.uMVmatrix, false, this.mModelView);
@@ -83,7 +99,9 @@ Scene.prototype.render = function() {
         for (var unif in mat.uniforms){
             // todo
         }
+    }
 
+    function bind_attributes(mat, obj){
         // discover attributes of the program and
         // bind them to obj buffer
         for (var attr in mat.attributes){
@@ -94,21 +112,34 @@ Scene.prototype.render = function() {
             //bind that buffer to this attribute
             gl.vertexAttribPointer(attrGpuID, 3, gl.FLOAT, false, 0, 0);
         }
-
-        // TOPOLOGY
-        if ('indices' in obj){
-            //bind indices buffer
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indices);
-            //invoke the program
-            gl.drawElements(obj.drawingMode, obj.indices.length, gl.UNSIGNED_SHORT, 0);
-        }else if('vertices' in obj){
-            gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertices);
-            gl.drawArrays(obj.drawingMode, obj.vertices.length, gl.FLOAT, 0);
-        }
-
     }
 
-    setTimeout(function(){Scene.prototype.render.apply(scene);}, 20);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    mat4.rotate(this.mModelView, this.mModelView, 0.01, [0, 1, 0.5]);
+
+    for (var i = 0; i < this.objects.length; i++) {
+        var obj = this.objects[i];
+        var mat = obj.material;
+
+        gl.useProgram(mat.program);
+
+        if(custom_draw(mat, obj)){
+            continue;
+        }
+
+        bind_uniforms.call(this, mat);
+        bind_attributes.call(this, mat, obj);
+
+        if ('transparent' in mat){
+            enable_transparency();
+            topology(mat, obj);
+            disable_transparency();
+        }else{
+            topology(mat, obj);
+        }
+    }
+
+    setTimeout(function(){Scene.prototype.render.apply(scene);}, 50);
 };
 
 //? mvp matrix position are not that much materially
@@ -117,10 +148,26 @@ function SimpleMaterial(scene){
     this.program = T3.pr.load_program(gl, 'simple.vertex', 'simple.fragment');
     this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
     this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
+    this.drawingMode = gl.TRIANGLES;
 
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition"),
         aColor : gl.getAttribLocation(this.program, "aColor")
+    };
+
+    this.uniforms = {
+    };
+}
+
+function DottyMaterial(scene){
+    var gl = scene.gl;
+    this.program = T3.pr.load_program(gl, 'dotty.vertex', 'simple.fragment');
+    this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
+    this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
+    this.drawingMode = gl.POINTS;
+
+    this.attributes = {
+        aPosition : gl.getAttribLocation(this.program, "aPosition")
     };
 
     this.uniforms = {
@@ -134,12 +181,11 @@ function Object(material, arrays, drawingMode){
     this.arrays = [];
     this.indices = null;
     this.vertices = null;
-    this.drawingMode = drawingMode;
 }
 
 // exports here
 T3.Scene = Scene;
 T3.SimpleMaterial = SimpleMaterial;
-
+T3.DottyMaterial = DottyMaterial;
 //list requirements here so that we fail fast if they are missing
 })(T3, T3.pr);

@@ -18,14 +18,15 @@ class Main(object):
         templ = Template(readf('index.html'))
         vsrc = readf('client/vertex.glsl')
         fsrc = readf('client/fragment.glsl')
-        return templ.substitute(vshader=vsrc, fshader=fsrc)
+        vdottysrc = readf('client/dotty.glsl')
+        return templ.substitute(vshader=vsrc, fshader=fsrc, vdotty=vdottysrc)
 
     @expose
     def surface(self):
         indices = read_space_separated_file('data/triangles.txt')
         vertices = read_space_separated_file('data/vertices.txt')
         normals = read_space_separated_file('data/vertex_normals.txt')
-        return json.dumps({'vertices':vertices, 'normals':normals, 'indices':indices})
+        return json.dumps({'vertices': vertices, 'normals': normals, 'indices': indices})
 
     @expose
     def voxels(self):
@@ -33,4 +34,4 @@ class Main(object):
             vertices = f.read()
         with open('data/nii_vox') as f:
             vals = f.read()
-        return '{"vertices": [%s], "indices": %s, "vals": [%s]}' % (vertices[:-1], json.dumps(range(1000)), vals[:-1])
+        return '{"vertices": [%s], "indices": %s}' % (vertices[:-1], json.dumps(range(len(vertices)/3/10)))
