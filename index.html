@@ -1,36 +1,21 @@
 <html>
 <head>
   <title>Graphy</title>
-
-      <!--
-       uniform mat4 uPmatrix;
-       uniform mat4 uMVmatrix;
-     -->
   <script type="x-shader" id="simple.vertex">
-      attribute vec3 aPosition;
-      attribute vec3 aColor;
-      varying vec3 vColor;
-
-      void main(void) {
-        gl_Position = vec4(aPosition/vec3(4, 4, 4) , 1.0);
-        vColor = aColor;
-      }
+      $vshader
   </script>
 
   <script type="x-shader" id="simple.fragment">
-    precision mediump float;
-    varying vec3 vColor;
-
-     void main(void) {
-        gl_FragColor = vec4(vColor, 1.0);
-    }
+      $fshader
   </script>
 
   <link rel="stylesheet" type="text/css" href="/s/m.css">
 
+  <script type="text/javascript" src="/s/t3/gl-matrix.js"></script>
   <script type="text/javascript" src="/s/t3/pr.js"></script>
   <script type="text/javascript" src="/s/t3/scene.js"></script>
   <script type="text/javascript" src="/s/t3/mesh.js"></script>
+  <script type="text/javascript" src="/s/u3.js"></script>
   <script type="text/javascript" src="/s/m.js"></script>
 
 </head>

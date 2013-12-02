@@ -5,10 +5,16 @@ function Scene(canvasId){
     var gl = this.canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
     this.gl = gl;
     this.objects = [];
-
     gl.enable(gl.DEPTH_TEST);
     // Near things obscure far things
     gl.depthFunc(gl.LEQUAL);
+    // camera stuff
+    gl.viewport(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+    this.mProj = mat4.create();
+    this.mModelView = mat4.create();
+    mat4.scale(this.mModelView, this.mModelView, [0.01, 0.01, 0.01]);
+    var aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+    // mat4.perspective(this.mProj, Math.PI/3, 1, -1, 1);
 }
 
 
@@ -48,6 +54,8 @@ Scene.prototype.render = function() {
     var gl = this.gl;
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+    mat4.rotate(this.mModelView, this.mModelView, 0.01, [0,1,0]);
+
     for (var i = 0; i < this.objects.length; i++) {
         var obj = this.objects[i];
         var mat = obj.material;
@@ -55,10 +63,10 @@ Scene.prototype.render = function() {
         gl.useProgram(mat.program);
 
         // custom draw
-        // if ('draw' in obj){
-        //     obj.draw(gl);
-        //     continue;
-        // }
+        if ('draw' in obj){
+            obj.draw(gl);
+            continue;
+        }
 
         // update buffers for dynamic objects
         if ('update' in obj){
@@ -68,10 +76,12 @@ Scene.prototype.render = function() {
         // bind common uniforms
         // lights
         // mv p martrices
+        gl.uniformMatrix4fv(mat.uPmatrix, false, this.mProj);
+        gl.uniformMatrix4fv(mat.uMVmatrix, false, this.mModelView);
 
-        // bind uniforms
+        // bind material uniforms
         for (var unif in mat.uniforms){
-            //obj.unif
+            // todo
         }
 
         // discover attributes of the program and
@@ -85,6 +95,7 @@ Scene.prototype.render = function() {
             gl.vertexAttribPointer(attrGpuID, 3, gl.FLOAT, false, 0, 0);
         }
 
+        // TOPOLOGY
         if ('indices' in obj){
             //bind indices buffer
             gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, obj.indices);
@@ -96,16 +107,24 @@ Scene.prototype.render = function() {
         }
 
     }
+
+    setTimeout(function(){Scene.prototype.render.apply(scene);}, 20);
 };
 
+//? mvp matrix position are not that much materially
 function SimpleMaterial(scene){
     var gl = scene.gl;
     this.program = T3.pr.load_program(gl, 'simple.vertex', 'simple.fragment');
+    this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
+    this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
+
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition"),
         aColor : gl.getAttribLocation(this.program, "aColor")
     };
-    this.uniforms = {};
+
+    this.uniforms = {
+    };
 }
 
 // todo replace obj ad hoc dict structure with a constructor
