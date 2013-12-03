@@ -45,7 +45,7 @@ function load_program(gl, vertex_id, fragment_id){
 }
 
 // exports here
-T3 = {
+window.T3 = {
     pr : {
         load_program:load_program,
         load_program_from_string:load_program_from_string

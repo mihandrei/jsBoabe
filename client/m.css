@@ -1,9 +1,28 @@
 body{
-	background-color: #333;
+	background-color: #444;
 }
 
 canvas{
-	margin-left: auto;
-	margin-right: auto;	
+	margin-left: 100px;
+	/*margin-right: auto;	*/
 	display: block;
+    border: 1px solid #555;
+    background-color: #333;
+}
+
+#spinner{
+    position:absolute;
+    left:550px;
+    top:400px;
+}
+
+.controls{
+    position:absolute;
+    left:10px;
+    top:40px;
+}
+
+.controls button{
+    width: 40px;
+    line-height: 25px;
 }

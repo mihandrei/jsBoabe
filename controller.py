@@ -3,13 +3,16 @@ import json
 from string import Template
 import svmap
 
+
 def read_space_separated_file(pth):
     with open(pth) as f:
         return f.read().split()
 
+
 def readf(pth):
     with open(pth) as f:
         return f.read()
+
 
 class Main(object):
 
@@ -30,8 +33,8 @@ class Main(object):
 
     @expose
     def voxels(self):
-        with open('data/nii_points') as f:
-            vertices = f.read()
-        with open('data/nii_vox') as f:
-            vals = f.read()
-        return '{"vertices": [%s], "indices": %s}' % (vertices[:-1], json.dumps(range(len(vertices)/3/10)))
+        vertices = read_space_separated_file('data/nii_points.txt')
+        values = read_space_separated_file('data/nii_voxels.txt')
+
+        return json.dumps({'vertices': vertices, 'values':values})
+

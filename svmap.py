@@ -92,7 +92,7 @@ class Mapper(object):
         # to index we need ints and cut the homog coord
         return findices.round().astype(int)[:, :-1]
 
-    def voxels2dots(self):
+    def voxels2vertices(self):
         """ transforms voxels coords according to affine and ret a seq
             returns pointxyz, voxelvalue
             iteration order is z first then y finally x
@@ -120,7 +120,7 @@ class Mapper(object):
                         dots[3*idx+2] = tr[2]
                         idx += 1
 
-        return dots, vals
+        return dots[:3*idx], vals[:idx]
 
     def mapping(self):
         """vertex 2 voxel value"""
@@ -148,6 +148,11 @@ class Mapper(object):
             print 'this looks bad:\n bads are more than 10% of goods'
         print c
 
+        # print non-mapped vertices
+        #for i in xrange(len(region_map)):
+        #    if region_map[i] == 0:
+        #        print "%s " % self.vertices[i]
+
     def view_section(self):
         plt.figure()
         plt.title('self.voxels[:, :, 100]')
@@ -169,7 +174,18 @@ def load_nii(pth):
     img = nibabel.load(pth)
     h = img.get_header()
     voxels = img.get_data()
-    affine = h.get_base_affine()
+    # affine = h.get_base_affine()
+    affine = h.get_best_affine()
+    # ajust the affine
+    sx = sy = sz = 1
+    ajusting = np.array(
+        [[sx,  0.0,  0.0,   0.0],
+         [0.0,  sy,  0.0,   0.0],
+         [0.0,  0.0,  sz,   0.0],
+         [0.0,  0.0,  0.0,  1.0]])
+
+    affine = ajusting.dot(affine)
+
     return voxels, affine
 
 
@@ -178,13 +194,20 @@ def load_vertices(pth):
         return np.loadtxt(f)
 
 
-def main_vox2pnt():
+def main_save_voxel_vertices():
     voxels, affine = load_nii(VOXELS_PTH)
     m = Mapper(voxels, None, affine)
-    dots, vox = m.voxels2dots()
-    np.savetxt('data/nii_points', dots, fmt='%.6f', delimiter=',', newline=',')
-    np.savetxt('data/nii_vox', vox, fmt='%d', delimiter=',', newline=',')
+    dots, vox = m.voxels2vertices()
 
+    with open('data/nii_points.txt', 'w') as f:
+        for i in xrange(0, len(dots), 3):
+            f.write(' '.join(str(v) for v in dots[i: i+3]))
+            f.write('\n')
+
+    with open('data/nii_voxels.txt', 'w') as f:
+        for v in vox:
+            f.write(str(v))
+            f.write('\n')
 
 def main_bboxes():
     voxels, affine = load_nii(VOXELS_PTH)
@@ -206,13 +229,8 @@ def main_bboxes():
 def main_eval_mapping():
     voxels, affine = load_nii(VOXELS_PTH)
     vertices = load_vertices(VERTICES_PTH)
-    affine = np.array(
-        [[  -1.0,  0.0,  0.0,   90.5],
-         [   0.0,  1.0,  0.0, -108.5],
-         [   0.0,  0.0,  1.0,  -90.5],
-         [   0.0,  0.0,  0.0,    1. ]])
     m = Mapper(voxels, vertices, affine)
-    # m.evaluate_mapping_correctness()
+    m.evaluate_mapping_correctness()
 
 def main_stats():
     voxels, affine = load_nii(VOXELS_PTH)
@@ -228,8 +246,8 @@ import traceback
 if __name__ == '__main__':
     try:
         # main_bboxes()
-        # main_vox2pnt()
-        # main_eval_mapping()
-        main_stats()
+        main_eval_mapping()
+        #main_save_voxel_vertices()
+        #main_stats()
     except Exception, e:
         traceback.print_exc()

@@ -5,8 +5,6 @@ function mesh(DX, DY) {
     var vertices = [];
     var colors = [];
     var indices = [];
-    var DX = 3;
-    var DY = 3;
 
     var i, j;
     //vertices

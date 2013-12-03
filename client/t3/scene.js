@@ -5,17 +5,21 @@ function Scene(canvasId){
     var gl = this.canvas.getContext("webgl") || this.canvas.getContext("experimental-webgl");
     this.gl = gl;
     this.objects = [];
+    this.fps = 10;
     // Near things obscure far things
     gl.depthFunc(gl.LEQUAL);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     disable_transparency(gl);
+
     // camera stuff
     gl.viewport(0, 0, this.canvas.clientWidth, this.canvas.clientHeight);
+    var aspect = this.canvas.clientWidth / this.canvas.clientHeight;
+
     this.mProj = mat4.create();
     this.mModelView = mat4.create();
     mat4.scale(this.mModelView, this.mModelView, [0.01, 0.01, 0.01]);
-    var aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-    // mat4.perspective(this.mProj, Math.PI/3, 1, -1, 1);
+    mat4.translate(this.mModelView, this.mModelView, [0, 0, -4]);
+    mat4.perspective(this.mProj, Math.PI/6, aspect, 3 , 5);
 }
 
 function enable_transparency(gl){
@@ -29,6 +33,10 @@ function disable_transparency(gl){
     gl.disable(gl.BLEND);
 
 }
+
+Scene.prototype.pre_render = function(){
+
+};
 
 // translate obj.arrays to gpu buffers
 // add object to scene to be rendered
@@ -54,9 +62,12 @@ Scene.prototype.add = function(obj) {
     }
 
     if('indices' in obj){
+        if(obj.indices.length>65535){
+            console.log('indices above 65 535 are not supported!')
+        }
         obj.indices = do_buffer(new Uint16Array(obj.indices), gl.ELEMENT_ARRAY_BUFFER);
     }else if('vertices' in obj){
-        obj.vertices = do_buffer(new Float32Array(obj.vertices), gl.ARRAY_BUFFER);
+        obj.vertices = obj.arrays[obj.vertices];
     }
 
     this.objects.push(obj);
@@ -73,7 +84,7 @@ Scene.prototype.render = function() {
             gl.drawElements(mat.drawingMode, obj.indices.length, gl.UNSIGNED_SHORT, 0);
         }else if('vertices' in obj){
             gl.bindBuffer(gl.ARRAY_BUFFER, obj.vertices);
-            gl.drawArrays(mat.drawingMode, obj.vertices.length, gl.FLOAT, 0);
+            gl.drawArrays(mat.drawingMode, 0, obj.vertices.length/3);
         }
     }
 
@@ -115,7 +126,7 @@ Scene.prototype.render = function() {
     }
 
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    mat4.rotate(this.mModelView, this.mModelView, 0.01, [0, 1, 0.5]);
+    this.pre_render();
 
     for (var i = 0; i < this.objects.length; i++) {
         var obj = this.objects[i];
@@ -130,16 +141,16 @@ Scene.prototype.render = function() {
         bind_uniforms.call(this, mat);
         bind_attributes.call(this, mat, obj);
 
-        if ('transparent' in mat){
-            enable_transparency(gl);
+//        if ('transparent' in mat){
+//            enable_transparency(gl);
+//            topology(mat, obj);
+//            disable_transparency(gl);
+//        }else{
             topology(mat, obj);
-            disable_transparency(gl);
-        }else{
-            topology(mat, obj);
-        }
+//        }
     }
 
-    setTimeout(function(){Scene.prototype.render.apply(scene);}, 50);
+    setTimeout(function(){Scene.prototype.render.apply(scene);}, 1000/this.fps);
 };
 
 //? mvp matrix position are not that much materially
@@ -148,8 +159,8 @@ function SimpleMaterial(scene){
     this.program = T3.pr.load_program(gl, 'simple.vertex', 'simple.fragment');
     this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
     this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
-    this.drawingMode = gl.TRIANGLES;
-    this.transparent = 1;
+    this.drawingMode = gl.TRIANGLES;//LINE_LOOP;
+    //this.transparent = 1;
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition"),
         aColor : gl.getAttribLocation(this.program, "aColor")
@@ -165,6 +176,22 @@ function DottyMaterial(scene){
     this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
     this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
     this.drawingMode = gl.POINTS;
+
+    this.attributes = {
+        aPosition : gl.getAttribLocation(this.program, "aPosition")
+        //, aValue : gl.getAttribLocation(this.program, "aPosition")
+    };
+
+    this.uniforms = {
+    };
+}
+
+function LineMaterial(scene){
+    var gl = scene.gl;
+    this.program = T3.pr.load_program(gl, 'dotty.vertex', 'simple.fragment');
+    this.uPmatrix = gl.getUniformLocation(this.program, "uPmatrix");
+    this.uMVmatrix = gl.getUniformLocation(this.program, "uMVmatrix");
+    this.drawingMode = gl.LINES;
 
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition")
@@ -187,5 +214,6 @@ function Object(material, arrays, drawingMode){
 T3.Scene = Scene;
 T3.SimpleMaterial = SimpleMaterial;
 T3.DottyMaterial = DottyMaterial;
+T3.LineMaterial=LineMaterial;
 //list requirements here so that we fail fast if they are missing
 })(T3, T3.pr);
