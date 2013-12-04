@@ -10,15 +10,70 @@ vertices
 import numpy as np
 import nibabel
 from collections import Counter
-import matplotlib.pyplot as plt
+
+
+def load_nii(pth):
+    img = nibabel.load(pth)
+    h = img.get_header()
+    voxels = img.get_data()
+    # affine = h.get_base_affine()
+    affine = h.get_best_affine()
+    # ajust the affine
+    sx = sy = sz = 1
+    ajusting = np.array(
+        [[sx,  0.0,  0.0,   0.0],
+         [0.0,  sy,  0.0,   0.0],
+         [0.0,  0.0,  sz,   0.0],
+         [0.0,  0.0,  0.0,  1.0]])
+
+    affine = ajusting.dot(affine)
+
+    return voxels, affine
+
+
+def load_vertices(pth):
+    with open(pth) as f:
+        return np.loadtxt(f)
+
+
+def load_region_id_to_index_map(pth):
+    region_id_to_region_idx = {}
+    with open(pth) as f:
+        for idx, line in enumerate(f):
+            rid, name = line.split()
+            region_id_to_region_idx[int(rid)] = idx
+    return region_id_to_region_idx
+
+
+def load_region_centers(pth):
+    ret = []
+    with open(pth) as f:
+        next(f)
+        for idx, line in enumerate(f):
+            name, x, y, z = line.split()
+            ret.append((float(x), float(y), float(z)))
+    return ret
+
+
+def _cube_neighborhood(radius=2):
+    d = []
+    r = range(-radius, radius+1)
+    for i in r:
+        for j in r:
+            for k in r:
+                d.append((i, j, k))
+    return d
 
 
 class Mapper(object):
-    def __init__(self, voxels, vertices, affine):
+    def __init__(self, voxels, vertices, affine, region_id_to_region_idx, centers):
         self.voxels = voxels
         self.vertices = vertices
         self.affine = affine
         self.invaffine = np.linalg.inv(self.affine)
+        self.region_id_to_region_idx = region_id_to_region_idx
+        self.region_idx_to_region_id = dict((v, k) for k, v in region_id_to_region_idx.iteritems())
+        self.centers = centers
 
     def stats(self):
         print 'voxels'
@@ -29,7 +84,7 @@ class Mapper(object):
             print '%s : %s' % kv
 
         print 'voxel positions after affine transform'
-        print '000 - %s' % self.affine.dot([0,0,0,1])
+        print '000 - %s' % self.affine.dot([0, 0, 0, 1])
         print '111 - %s' % self.affine.dot(list(self.voxels.shape) + [1])
 
         print 'vertices positions'
@@ -89,8 +144,10 @@ class Mapper(object):
         # transform all vertices 2 voxel index space
         # affint.T so that each column is a vertex, then matrix mul will multiply all
         findices = self.invaffine.dot(affine_vertices.T).T
-        # to index we need ints and cut the homog coord
-        return findices.round().astype(int)[:, :-1]
+        # to index we need ints
+        int_indices = np.round(findices).astype(int)
+        #and cut the homog coord
+        return int_indices[:, :-1]
 
     def voxels2vertices(self):
         """ transforms voxels coords according to affine and ret a seq
@@ -122,29 +179,88 @@ class Mapper(object):
 
         return dots[:3*idx], vals[:idx]
 
+    _neigh2 = _cube_neighborhood(radius=2)
+    _neigh4 = _cube_neighborhood(radius=4)
+    _neigh8 = _cube_neighborhood(radius=8)
+    _neigh12 = _cube_neighborhood(radius=12)
+
+    def _sample_neighbourhood(self, i, j, k):
+        def _sample(neigh):
+            vals = []
+
+            for di, dj, dk in neigh:
+                v = self.voxels[i + di, j + dj, k + dk]
+                if v != 0:
+                    vals.append(v)
+
+            if vals:
+                return Counter(vals).most_common()[0][0]
+            else:
+                return 0
+
+        v = _sample(self._neigh2)
+        if v:
+            return v
+        v = _sample(self._neigh4)
+        if v:
+            return v
+        v = _sample(self._neigh8)
+        if v:
+            return v
+        v = _sample(self._neigh12)
+        if v:
+            return v
+        return 0
+
+    def _sample_distance2centers(self, vertex):
+        vx, vy, vz = vertex
+
+        def dist(c):
+            cx, cy, cz = c[1]
+            return (cx - vx)**2 + (cy - vy)**2 + (cz - vz)**2
+
+        closest_center = max(enumerate(self.centers), key=dist)
+        return self.region_idx_to_region_id[closest_center[0]]
+
     def mapping(self):
         """vertex 2 voxel value"""
-        indices = self.vertices2voxel_indices()
+        voxel_indices = self.vertices2voxel_indices()
         vertex_voxel_values = []
 
-        for idx in indices:
-            v = self.voxels[tuple(idx)]
+        for vertex_id, voxel_idx in enumerate(voxel_indices):
+            i, j, k = tuple(voxel_idx)
+            v = self.voxels[i, j, k]
+            if v == 0:
+                v = self._sample_neighbourhood(i, j, k)
+                #v = self._sample_distance2centers(self.vertices[vertex_id])
             vertex_voxel_values.append(v)
 
         return vertex_voxel_values
+
+    def mapping2regionmap(self):
+        mapping = self.mapping()
+        id_to_index = self.region_id_to_region_idx
+        ret = []
+        for v in mapping:
+            if v != 0:
+                ret.append(id_to_index[v] + 1)
+            else:
+                #FIXME: this is a baaaad default, temporary workaround to see data intvb
+                ret.append(0)
+        return ret
 
     def evaluate_mapping_correctness(self):
         region_map = self.mapping()
         c = Counter(region_map)
         mapped2zero = c[0]
-        mappedOk = len(self.vertices) - mapped2zero
-        okAvg = mappedOk / (len(c) - 1)
+        mapped_ok = len(self.vertices) - mapped2zero
+        ok_avg = mapped_ok / (len(c) - 1)
         print 'total vertices                 : %s' % len(self.vertices)
         print 'vertices mapped to zero region : %s' % mapped2zero
         print 'average number of vertices '
-        print '    per non-zero region        : %s ' % okAvg
+        print '    per non-zero region        : %s ' % ok_avg
         
-        if mapped2zero > 0.10 * okAvg:
+        if mapped2zero > 0.10 * ok_avg:
             print 'this looks bad:\n bads are more than 10% of goods'
         print c
 
@@ -152,102 +268,3 @@ class Mapper(object):
         #for i in xrange(len(region_map)):
         #    if region_map[i] == 0:
         #        print "%s " % self.vertices[i]
-
-    def view_section(self):
-        plt.figure()
-        plt.title('self.voxels[:, :, 100]')
-        plt.imshow(self.voxels[:, :, 100], origin="lower")
-        plt.figure()
-        plt.title('self.voxels[:, 100, :]')
-        plt.imshow(self.voxels[:, 100, :], origin="lower")
-        plt.figure()
-        plt.title('self.voxels[100, :, :]')
-        plt.imshow(self.voxels[100, :, :], origin="lower")
-        plt.show()
-
-
-VOXELS_PTH = 'data/rm+thal&bg_1mm_20111013_uint8.nii'
-VERTICES_PTH = 'data/vertices.txt'
-
-
-def load_nii(pth):
-    img = nibabel.load(pth)
-    h = img.get_header()
-    voxels = img.get_data()
-    # affine = h.get_base_affine()
-    affine = h.get_best_affine()
-    # ajust the affine
-    sx = sy = sz = 1
-    ajusting = np.array(
-        [[sx,  0.0,  0.0,   0.0],
-         [0.0,  sy,  0.0,   0.0],
-         [0.0,  0.0,  sz,   0.0],
-         [0.0,  0.0,  0.0,  1.0]])
-
-    affine = ajusting.dot(affine)
-
-    return voxels, affine
-
-
-def load_vertices(pth):
-    with open(pth) as f:
-        return np.loadtxt(f)
-
-
-def main_save_voxel_vertices():
-    voxels, affine = load_nii(VOXELS_PTH)
-    m = Mapper(voxels, None, affine)
-    dots, vox = m.voxels2vertices()
-
-    with open('data/nii_points.txt', 'w') as f:
-        for i in xrange(0, len(dots), 3):
-            f.write(' '.join(str(v) for v in dots[i: i+3]))
-            f.write('\n')
-
-    with open('data/nii_voxels.txt', 'w') as f:
-        for v in vox:
-            f.write(str(v))
-            f.write('\n')
-
-def main_bboxes():
-    voxels, affine = load_nii(VOXELS_PTH)
-    vertices = load_vertices(VERTICES_PTH)
-    m = Mapper(voxels, vertices, affine)
-    print 'surface bbox min xyz max xyz'
-    print ['%.1f' % q for q in m.bbox_surface()]
-    print 'voxel trimmed !=0 planes. Plane indices min max ijk'
-    imin, jmin, kmin, imax, jmax, kmax = m.bbox_voxels()
-    print imin, jmin, kmin, imax, jmax, kmax
-    print 'these through the affine'
-    print 'min %s' % m.affine.dot([imin, jmin, kmin, 1])
-    print 'max %s' % m.affine.dot([imax, jmax, kmax, 1])
-    print voxels.shape
-    print m.affine
-    m.view_section()
-
-
-def main_eval_mapping():
-    voxels, affine = load_nii(VOXELS_PTH)
-    vertices = load_vertices(VERTICES_PTH)
-    m = Mapper(voxels, vertices, affine)
-    m.evaluate_mapping_correctness()
-
-def main_stats():
-    voxels, affine = load_nii(VOXELS_PTH)
-    vertices = load_vertices(VERTICES_PTH)
-    m = Mapper(voxels, vertices, affine)
-    print m.vertices.shape
-    print m.voxels.shape
-    print np.count_nonzero(m.voxels)
-    print m.stats()
-
-import traceback
-
-if __name__ == '__main__':
-    try:
-        # main_bboxes()
-        main_eval_mapping()
-        #main_save_voxel_vertices()
-        #main_stats()
-    except Exception, e:
-        traceback.print_exc()

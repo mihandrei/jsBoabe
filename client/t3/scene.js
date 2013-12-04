@@ -18,8 +18,8 @@ function Scene(canvasId){
     this.mProj = mat4.create();
     this.mModelView = mat4.create();
     mat4.scale(this.mModelView, this.mModelView, [0.01, 0.01, 0.01]);
-    mat4.translate(this.mModelView, this.mModelView, [0, 0, -4]);
-    mat4.perspective(this.mProj, Math.PI/6, aspect, 3 , 5);
+    mat4.translate(this.mModelView, this.mModelView, [0, 0, -5]);
+    mat4.perspective(this.mProj, Math.PI/6, aspect, 3.5 , 5.5);
 }
 
 function enable_transparency(gl){

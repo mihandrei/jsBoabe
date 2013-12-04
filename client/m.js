@@ -4,17 +4,19 @@ function onkey(evt){
         case 40: rot_d(); break;
         case 37: rot_l(); break;
         case 39: rot_r(); break;
-        case 88: toggle_vox(); break;
-        case 87: tr_w(); break;
-        case 83: tr_s(); break;
+        case 88: toggle_obj(0); break;
+        case 90: toggle_obj(1); break;
+        case 87: slice_w(); break;
+        case 83: slice_s(); break;
         case 80: toggle_persp(); break;
     }
 }
 
 function bind_events(){
-    document.getElementById('wbtn').onclick = tr_w;
-    document.getElementById('sbtn').onclick = tr_s;
-    document.getElementById('xbtn').onclick = toggle_vox;
+    document.getElementById('wbtn').onclick = slice_w;
+    document.getElementById('sbtn').onclick = slice_s;
+    document.getElementById('xbtn').onclick = function(){toggle_obj(0);};
+    document.getElementById('zbtn').onclick = function(){toggle_obj(1);};
     document.getElementById('ubtn').onclick = rot_u;
     document.getElementById('dbtn').onclick = rot_d;
     document.getElementById('lbtn').onclick = rot_l;
@@ -35,32 +37,47 @@ function rot_l(){
 function rot_r(){
     mat4.rotate(scene.mModelView, scene.mModelView, -Math.PI/2, [0,1,0]);
 }
-function toggle_vox(){
-    if('draw' in scene.objects[0]){
-        delete scene.objects[0].draw
+
+function toggle_obj(i){
+    if('draw' in scene.objects[i]){
+        delete scene.objects[i].draw
     }else{
-        scene.objects[0].draw = function(){};
+        scene.objects[i].draw = function(){};
     }
 }
-function tr_w(){
-    mat4.translate(scene.mModelView, scene.mModelView, [0,0,-0.05]);
+
+function slice_w(){
+    //mat4.translate(scene.mModelView, scene.mModelView, [0,0,-0.05]);
+    nearclip -= 0.05;
+    compute_persp();
 }
-function tr_s(){
-    mat4.translate(scene.mModelView, scene.mModelView, [0,0, +0.05]);
+
+function slice_s(){
+    //mat4.translate(scene.mModelView, scene.mModelView, [0,0, +0.05]);
+    nearclip += 0.05;
+    compute_persp();
 }
 
 var slicing = false;
+var nearclip = 3.5;
+
 
 function toggle_persp(){
-    // slicing frustum
-    var aspect = scene.canvas.clientWidth / scene.canvas.clientHeight;
-    mat4.identity(scene.mProj);
     slicing = !slicing;
+    compute_persp();
+}
 
+function compute_persp(){
+    var aspect = scene.canvas.clientWidth / scene.canvas.clientHeight;
+    // slicing frustum
+    mat4.identity(scene.mProj);
+    if(nearclip<0){
+        nearclip = 0;
+    }
     if(slicing){
-        mat4.perspective(scene.mProj, Math.PI/6, aspect, 3 , 3.01);
+        mat4.perspective(scene.mProj, Math.PI/6, aspect, nearclip , nearclip + 0.01);
     }else{
-        mat4.perspective(scene.mProj, Math.PI/6, aspect, 3 , 5);
+        mat4.perspective(scene.mProj, Math.PI/6, aspect, nearclip , 5.5);
     }
 }
 
@@ -103,7 +120,7 @@ function on_data_loaded(data) {
         material:simpleMat,
         arrays: {
             aPosition: surface.vertices,
-            aColor : surface.normals
+            aColor : surface.colors
         },
         indices: surface.indices.slice(0,350*1000)
     };
