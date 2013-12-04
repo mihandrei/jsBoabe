@@ -36,10 +36,10 @@ function rot_r(){
     mat4.rotate(scene.mModelView, scene.mModelView, -Math.PI/2, [0,1,0]);
 }
 function toggle_vox(){
-    if('draw' in scene.objects[1]){
-        delete scene.objects[1].draw
+    if('draw' in scene.objects[0]){
+        delete scene.objects[0].draw
     }else{
-        scene.objects[1].draw = function(){};
+        scene.objects[0].draw = function(){};
     }
 }
 function tr_w(){
@@ -93,8 +93,8 @@ function on_data_loaded(data) {
     var voxel_object = {
         material:dottyMat,
         arrays: {
-            aPosition: voxels.vertices
-            //, aValue:voxels.values
+            aPosition: voxels.vertices,
+            aColor:voxels.colors
         },
         vertices: 'aPosition'
     };

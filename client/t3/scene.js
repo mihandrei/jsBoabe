@@ -179,7 +179,7 @@ function DottyMaterial(scene){
 
     this.attributes = {
         aPosition : gl.getAttribLocation(this.program, "aPosition")
-        //, aValue : gl.getAttribLocation(this.program, "aPosition")
+      , aColor : gl.getAttribLocation(this.program, "aColor")
     };
 
     this.uniforms = {
