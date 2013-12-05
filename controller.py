@@ -3,6 +3,7 @@ import json
 from string import Template
 import colorsys
 
+
 def read_space_separated_file(pth):
     with open(pth) as f:
         return f.read().split()
@@ -39,9 +40,9 @@ class Main(object):
 
     @expose
     def surface(self):
-        indices = read_space_separated_file('data/triangles.txt')
-        vertices = read_space_separated_file('data/vertices.txt')
-        vertex_mapping = read_space_separated_file('data/nii_raw_mapping.txt')
+        indices = read_space_separated_file('viewerdata/triangles.txt')
+        vertices = read_space_separated_file('viewerdata/vertices.txt')
+        vertex_mapping = read_space_separated_file('viewerdata/nii_raw_mapping.txt')
 
         colors = []
         pallete = make_pallete()
@@ -54,8 +55,8 @@ class Main(object):
 
     @expose
     def voxels(self):
-        vertices = read_space_separated_file('data/nii_points.txt')
-        values = read_space_separated_file('data/nii_raw_voxels.txt')
+        vertices = read_space_separated_file('viewerdata/nii_points.txt')
+        values = read_space_separated_file('viewerdata/nii_raw_voxels.txt')
         colors = []
         pallete = make_pallete()
         for v in values:
